@@ -242,6 +242,20 @@ server.delete('/store_items/:id', isAdmin, (req, res) => {
 });
 
 // Events Routes
+// View Events (Accessible to All)
+server.get('/events', (req, res) => {
+    const query = `SELECT * FROM events`;
+
+    db.all(query, (err, rows) => {
+        if (err) {
+            console.log('Database error while fetching events:', err.message);
+            return res.status(500).send(err.message);
+        } else {
+            return res.status(200).json(rows);
+        }
+    });
+});
+
 // Add Event (Admin Only)
 server.post('/events', isAdmin, (req, res) => {
     const { name, date, description } = req.body;
