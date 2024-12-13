@@ -16,15 +16,20 @@ server.post('/user/login', (req, res) => {
     const query = `SELECT * FROM students WHERE email = '${email}'`;
 
     db.get(query, async (err, row) => {
-        if (err || !row) {
+        if (err) {
+            console.log('Database error during login:', err.message);
+            return res.status(500).send('Server error');
+        }
+        if (!row) {
+            console.log('Login failed: Invalid email');
             return res.status(401).send('Invalid credentials');
+        }
+        const match = await bcrypt.compare(password, row.password);
+        if (match) {
+            return res.status(200).send(`Login successful: ${row.name}`);
         } else {
-            const match = await bcrypt.compare(password, row.password);
-            if (match) {
-                return res.status(200).send(`Login successful: ${row.name}`);
-            } else {
-                return res.status(401).send('Invalid credentials');
-            }
+            console.log('Login failed: Incorrect password');
+            return res.status(401).send('Invalid credentials');
         }
     });
 });
@@ -40,14 +45,14 @@ server.post('/user/register', async (req, res) => {
 
         db.run(query, (err) => {
             if (err) {
-                console.log(err.message);
+                console.log('Database error during registration:', err.message);
                 return res.status(401).send(err.message);
             } else {
                 return res.status(200).send('Registration successful');
             }
         });
     } catch (error) {
-        console.log(error.message);
+        console.log('Error during password hashing or registration:', error.message);
         return res.status(500).send('Server error');
     }
 });
@@ -59,7 +64,7 @@ server.post('/comments', (req, res) => {
 
     db.run(query, (err) => {
         if (err) {
-            console.log(err.message);
+            console.log('Database error while adding comment:', err.message);
             return res.status(401).send(err.message);
         } else {
             return res.status(200).send('Comment added successfully');
@@ -74,7 +79,7 @@ server.post('/cart', (req, res) => {
 
     db.run(query, (err) => {
         if (err) {
-            console.log(err.message);
+            console.log('Database error while adding to cart:', err.message);
             return res.status(401).send(err.message);
         } else {
             return res.status(200).send('Item added to cart');
@@ -92,7 +97,7 @@ server.get('/cart/:studentId', (req, res) => {
 
     db.all(query, (err, rows) => {
         if (err) {
-            console.log(err.message);
+            console.log('Database error while fetching cart:', err.message);
             return res.status(500).send(err.message);
         } else {
             return res.status(200).json(rows);
@@ -109,9 +114,13 @@ server.post('/checkout', (req, res) => {
                    WHERE cart.studentId = ${studentId}`;
 
     db.all(query, (err, rows) => {
-        if (err || rows.length === 0) {
-            console.log(err?.message || 'Cart is empty');
-            return res.status(500).send(err?.message || 'Cart is empty');
+        if (err) {
+            console.log('Database error during checkout fetch:', err.message);
+            return res.status(500).send(err.message);
+        }
+        if (rows.length === 0) {
+            console.log('Checkout failed: Cart is empty');
+            return res.status(400).send('Cart is empty');
         }
 
         let totalPrice = 0;
@@ -123,14 +132,14 @@ server.post('/checkout', (req, res) => {
 
         db.run(transactionQuery, (err) => {
             if (err) {
-                console.log(err.message);
+                console.log('Database error while recording transaction:', err.message);
                 return res.status(500).send(err.message);
             }
 
             const deleteCartQuery = `DELETE FROM cart WHERE studentId = ${studentId}`;
             db.run(deleteCartQuery, (err) => {
                 if (err) {
-                    console.log(err.message);
+                    console.log('Database error while clearing cart:', err.message);
                     return res.status(500).send(err.message);
                 } else {
                     return res.status(200).send('Checkout successful');
@@ -147,7 +156,7 @@ server.post('/feedback', (req, res) => {
 
     db.run(query, (err) => {
         if (err) {
-            console.log(err.message);
+            console.log('Database error while adding feedback:', err.message);
             return res.status(401).send(err.message);
         } else {
             return res.status(200).send('Feedback added successfully');
@@ -159,12 +168,26 @@ server.post('/feedback', (req, res) => {
 server.listen(port, () => {
     console.log(`Server started on port ${port}`);
     db.serialize(() => {
-        db.exec(db_access.createStudentsTable);
-        db.exec(db_access.createCommentsTable);
-        db.exec(db_access.createStoreItemsTable);
-        db.exec(db_access.createTransactionsTable);
-        db.exec(db_access.createCartTable);
-        db.exec(db_access.createFeedbackTable);
-        db.exec(db_access.createEventsTable);
+        db.exec(db_access.createStudentsTable, (err) => {
+            if (err) console.log('Error creating Students table:', err.message);
+        });
+        db.exec(db_access.createCommentsTable, (err) => {
+            if (err) console.log('Error creating Comments table:', err.message);
+        });
+        db.exec(db_access.createStoreItemsTable, (err) => {
+            if (err) console.log('Error creating Store Items table:', err.message);
+        });
+        db.exec(db_access.createTransactionsTable, (err) => {
+            if (err) console.log('Error creating Transactions table:', err.message);
+        });
+        db.exec(db_access.createCartTable, (err) => {
+            if (err) console.log('Error creating Cart table:', err.message);
+        });
+        db.exec(db_access.createFeedbackTable, (err) => {
+            if (err) console.log('Error creating Feedback table:', err.message);
+        });
+        db.exec(db_access.createEventsTable, (err) => {
+            if (err) console.log('Error creating Events table:', err.message);
+        });
     });
 });
