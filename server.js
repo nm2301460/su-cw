@@ -1,13 +1,31 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
+const sqlite3 = require('sqlite3');
 const db_access = require('./db.js');
 const db = db_access.db;
+
 const server = express();
 const port = 888;
 server.use(express.json());
 
 // Helper: Convert boolean to integer for SQLite
 const boolToInt = (bool) => (bool ? 1 : 0);
+
+// Middleware to check if user is admin
+function isAdmin(req, res, next) {
+    const adminId = req.body.adminId;
+    db.get('SELECT isAdmin FROM students WHERE id = ?', [adminId], (err, row) => {
+        if (err) {
+            console.log('Database error during admin check:', err.message);
+            return res.status(500).send('Server error');
+        }
+        if (row && row.isAdmin) {
+            next();
+        } else {
+            return res.status(403).send('Permission denied');
+        }
+    });
+}
 
 // User Login
 server.post('/user/login', (req, res) => {
@@ -41,9 +59,8 @@ server.post('/user/register', async (req, res) => {
 
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        const query = `INSERT INTO students (name, email, password, isAdmin) VALUES ('${name}', '${email}', '${hashedPassword}', ${isAdmin})`;
-
-        db.run(query, (err) => {
+        const query = `INSERT INTO students (name, email, password, isAdmin) VALUES (?, ?, ?, ?)`;
+        db.run(query, [name, email, hashedPassword, isAdmin], (err) => {
             if (err) {
                 console.log('Database error during registration:', err.message);
                 return res.status(401).send(err.message);
@@ -60,9 +77,9 @@ server.post('/user/register', async (req, res) => {
 // Add Comment (Students and Admins)
 server.post('/comments', (req, res) => {
     const { content, studentId, date } = req.body;
-    const query = `INSERT INTO comments (content, studentId, date) VALUES ('${content}', ${studentId}, '${date}')`;
+    const query = `INSERT INTO comments (content, studentId, date) VALUES (?, ?, ?)`;
 
-    db.run(query, (err) => {
+    db.run(query, [content, studentId, date], (err) => {
         if (err) {
             console.log('Database error while adding comment:', err.message);
             return res.status(401).send(err.message);
@@ -75,9 +92,9 @@ server.post('/comments', (req, res) => {
 // Add Item to Cart
 server.post('/cart', (req, res) => {
     const { studentId, itemId, quantity } = req.body;
-    const query = `INSERT INTO cart (studentId, itemId, quantity) VALUES (${studentId}, ${itemId}, ${quantity})`;
+    const query = `INSERT INTO cart (studentId, itemId, quantity) VALUES (?, ?, ?)`;
 
-    db.run(query, (err) => {
+    db.run(query, [studentId, itemId, quantity], (err) => {
         if (err) {
             console.log('Database error while adding to cart:', err.message);
             return res.status(401).send(err.message);
@@ -93,9 +110,9 @@ server.get('/cart/:studentId', (req, res) => {
     const query = `SELECT cart.id, store_items.name, store_items.price, cart.quantity 
                    FROM cart 
                    JOIN store_items ON cart.itemId = store_items.id 
-                   WHERE cart.studentId = ${studentId}`;
+                   WHERE cart.studentId = ?`;
 
-    db.all(query, (err, rows) => {
+    db.all(query, [studentId], (err, rows) => {
         if (err) {
             console.log('Database error while fetching cart:', err.message);
             return res.status(500).send(err.message);
@@ -111,9 +128,9 @@ server.post('/checkout', (req, res) => {
     const query = `SELECT cart.itemId, cart.quantity, store_items.price 
                    FROM cart 
                    JOIN store_items ON cart.itemId = store_items.id 
-                   WHERE cart.studentId = ${studentId}`;
+                   WHERE cart.studentId = ?`;
 
-    db.all(query, (err, rows) => {
+    db.all(query, [studentId], (err, rows) => {
         if (err) {
             console.log('Database error during checkout fetch:', err.message);
             return res.status(500).send(err.message);
@@ -128,16 +145,16 @@ server.post('/checkout', (req, res) => {
             totalPrice += item.quantity * item.price;
         });
 
-        const transactionQuery = `INSERT INTO transactions (studentId, totalPrice, date) VALUES (${studentId}, ${totalPrice}, '${new Date().toISOString()}')`;
+        const transactionQuery = `INSERT INTO transactions (studentId, totalPrice, date) VALUES (?, ?, ?)`;
 
-        db.run(transactionQuery, (err) => {
+        db.run(transactionQuery, [studentId, totalPrice, new Date().toISOString()], (err) => {
             if (err) {
                 console.log('Database error while recording transaction:', err.message);
                 return res.status(500).send(err.message);
             }
 
-            const deleteCartQuery = `DELETE FROM cart WHERE studentId = ${studentId}`;
-            db.run(deleteCartQuery, (err) => {
+            const deleteCartQuery = `DELETE FROM cart WHERE studentId = ?`;
+            db.run(deleteCartQuery, [studentId], (err) => {
                 if (err) {
                     console.log('Database error while clearing cart:', err.message);
                     return res.status(500).send(err.message);
@@ -152,9 +169,9 @@ server.post('/checkout', (req, res) => {
 // Add Feedback
 server.post('/feedback', (req, res) => {
     const { studentId, itemId, comment, date } = req.body;
-    const query = `INSERT INTO feedback (studentId, itemId, comment, date) VALUES (${studentId}, ${itemId}, '${comment}', '${date}')`;
+    const query = `INSERT INTO feedback (studentId, itemId, comment, date) VALUES (?, ?, ?, ?)`;
 
-    db.run(query, (err) => {
+    db.run(query, [studentId, itemId, comment, date], (err) => {
         if (err) {
             console.log('Database error while adding feedback:', err.message);
             return res.status(401).send(err.message);
@@ -167,9 +184,9 @@ server.post('/feedback', (req, res) => {
 // Search for Items
 server.get('/search', (req, res) => {
     const { query } = req.query;
-    const searchQuery = `SELECT * FROM store_items WHERE name LIKE '%${query}%' OR description LIKE '%${query}%'`;
+    const searchQuery = `SELECT * FROM store_items WHERE name LIKE ? OR description LIKE ?`;
 
-    db.all(searchQuery, (err, rows) => {
+    db.all(searchQuery, [`%${query}%`, `%${query}%`], (err, rows) => {
         if (err) {
             console.log('Database error during item search:', err.message);
             return res.status(500).send(err.message);
@@ -179,26 +196,157 @@ server.get('/search', (req, res) => {
     });
 });
 
-// Function to create an event (only if the user is an admin)
-function createEvent(title, description, location, createdBy, callback) {
-    // Check if the user is an admin
-    db.get('SELECT isAdmin FROM students WHERE id = ?', [createdBy], (err, row) => {
+// Admin Routes for Store Items
+
+// Add Store Item (Admin Only)
+server.post('/store_items', isAdmin, (req, res) => {
+    const { name, description, price, category, available } = req.body;
+    const query = `INSERT INTO store_items (name, description, price, category, available) VALUES (?, ?, ?, ?, ?)`;
+    db.run(query, [name, description, price, category, available], (err) => {
         if (err) {
-            return callback(err);
-        }
-        if (row && row.isAdmin) {
-            db.run(
-                `INSERT INTO events (title, description, location, createdBy) VALUES (?, ?, ?, ?)`,
-                [title, description, location, createdBy],
-                function (err) {
-                    callback(err, this.lastID);
-                }
-            );
+            console.log('Database error while adding store item:', err.message);
+            return res.status(401).send(err.message);
         } else {
-            callback(new Error('Only admin users can create events.'));
+            return res.status(200).send('Store item added successfully');
         }
     });
-}
+});
+
+// Edit Store Item (Admin Only)
+server.put('/store_items/:id', isAdmin, (req, res) => {
+    const { name, description, price, category, available } = req.body;
+    const itemId = req.params.id;
+    const query = `UPDATE store_items SET name = ?, description = ?, price = ?, category = ?, available = ? WHERE id = ?`;
+    db.run(query, [name, description, price, category, available, itemId], (err) => {
+        if (err) {
+            console.log('Database error while updating store item:', err.message);
+            return res.status(401).send(err.message);
+        } else {
+            return res.status(200).send('Store item updated successfully');
+        }
+    });
+});
+
+// Delete Store Item (Admin Only)
+server.delete('/store_items/:id', isAdmin, (req, res) => {
+    const itemId = req.params.id;
+    const query = `DELETE FROM store_items WHERE id = ?`;
+    db.run(query, [itemId], (err) => {
+        if (err) {
+            console.log('Database error while deleting store item:', err.message);
+            return res.status(401).send(err.message);
+        } else {
+            return res.status(200).send('Store item deleted successfully');
+        }
+    });
+});
+
+// Events Routes
+// Add Event (Admin Only)
+server.post('/events', isAdmin, (req, res) => {
+    const { name, date, description } = req.body;
+    const query = `INSERT INTO events (name, date, description) VALUES (?, ?, ?)`;
+
+    db.run(query, [name, date, description], (err) => {
+        if (err) {
+            console.log('Database error while adding event:', err.message);
+            return res.status(401).send(err.message);
+        } else {
+            return res.status(200).send('Event added successfully');
+        }
+    });
+});
+
+// Edit Event (Admin Only)
+server.put('/events/:id', isAdmin, (req, res) => {
+    const { name, date, description } = req.body;
+    const eventId = req.params.id;
+    const query = `UPDATE events SET name = ?, date = ?, description = ? WHERE id = ?`;
+
+    db.run(query, [name, date, description, eventId], (err) => {
+        if (err) {
+            console.log('Database error while editing event:', err.message);
+            return res.status(401).send(err.message);
+        } else {
+            return res.status(200).send('Event updated successfully');
+        }
+    });
+});
+
+// Delete Event (Admin Only)
+server.delete('/events/:id', isAdmin, (req, res) => {
+    const eventId = req.params.id;
+    const query = `DELETE FROM events WHERE id = ?`;
+
+    db.run(query, [eventId], (err) => {
+        if (err) {
+            console.log('Database error while deleting event:', err.message);
+            return res.status(401).send(err.message);
+        } else {
+            return res.status(200).send('Event deleted successfully');
+        }
+    });
+});
+
+// Admin Respond to Comment
+server.post('/comments/respond', isAdmin, (req, res) => {
+    const { commentId, response } = req.body;
+    const query = `UPDATE comments SET response = ? WHERE id = ?`;
+
+    db.run(query, [response, commentId], (err) => {
+        if (err) {
+            console.log('Database error while responding to comment:', err.message);
+            return res.status(401).send(err.message);
+        } else {
+            return res.status(200).send('Response added successfully');
+        }
+    });
+});
+
+// Admin Delete Comment
+server.delete('/comments/:id', isAdmin, (req, res) => {
+    const commentId = req.params.id;
+    const query = `DELETE FROM comments WHERE id = ?`;
+
+    db.run(query, [commentId], (err) => {
+        if (err) {
+            console.log('Database error while deleting comment:', err.message);
+            return res.status(401).send(err.message);
+        } else {
+            return res.status(200).send('Comment deleted successfully');
+        }
+    });
+});
+
+// Admin Respond to Feedback
+server.post('/feedback/respond', isAdmin, (req, res) => {
+    const { feedbackId, response } = req.body;
+    const query = `UPDATE feedback SET response = ? WHERE id = ?`;
+
+    db.run(query, [response, feedbackId], (err) => {
+        if (err) {
+            console.log('Database error while responding to feedback:', err.message);
+            return res.status(401).send(err.message);
+        } else {
+            return res.status(200).send('Response added successfully');
+        }
+    });
+});
+
+// Admin Delete Feedback
+server.delete('/feedback/:id', isAdmin, (req, res) => {
+    const feedbackId = req.params.id;
+    const query = `DELETE FROM feedback WHERE id = ?`;
+
+    db.run(query, [feedbackId], (err) => {
+        if (err) {
+            console.log('Database error while deleting feedback:', err.message);
+            return res.status(401).send(err.message);
+        } else {
+            return res.status(200).send('Feedback deleted successfully');
+        }
+    });
+});
 
 // Listen on Port
 server.listen(port, () => {
