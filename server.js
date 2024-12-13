@@ -1,12 +1,36 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const sqlite3 = require('sqlite3');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 const db_access = require('./db.js');
 const db = db_access.db;
-
+const secret_key = 'DdsdsdKKFDDFDdvfddvxvc4dsdvdsvdb'
+server.use(cors({
+    origin:"http://localhost:3000",
+    credentials:true
+}))
 const server = express();
 const port = 888;
+const JWT_SECRET = 'your_jwt_secret_key'; // This should be an environment variable
 server.use(express.json());
+server.use(cookieParser()); // Middleware to parse cookies
+const generateToken = (id, isAdmin) => {
+    return jwt.sign({ id, isAdmin }, secret_key, { expiresIn: '1h' })
+}
+const verifyToken = (req, res, next) => {
+    const token = req.cookies.authToken
+    if (!token)
+        return res.status(401).send('unauthorized')
+    jwt.verify(token, secret_key, (err, details) => {
+        if (err)
+            return res.status(403).send('invalid or expired token')
+        req.userDetails = details
+
+        next()
+    })
+}
+
 
 // Helper: Convert boolean to integer for SQLite
 const boolToInt = (bool) => (bool ? 1 : 0);
