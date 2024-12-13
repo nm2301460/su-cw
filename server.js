@@ -164,6 +164,42 @@ server.post('/feedback', (req, res) => {
     });
 });
 
+// Search for Items
+server.get('/search', (req, res) => {
+    const { query } = req.query;
+    const searchQuery = `SELECT * FROM store_items WHERE name LIKE '%${query}%' OR description LIKE '%${query}%'`;
+
+    db.all(searchQuery, (err, rows) => {
+        if (err) {
+            console.log('Database error during item search:', err.message);
+            return res.status(500).send(err.message);
+        } else {
+            return res.status(200).json(rows);
+        }
+    });
+});
+
+// Function to create an event (only if the user is an admin)
+function createEvent(title, description, location, createdBy, callback) {
+    // Check if the user is an admin
+    db.get('SELECT isAdmin FROM students WHERE id = ?', [createdBy], (err, row) => {
+        if (err) {
+            return callback(err);
+        }
+        if (row && row.isAdmin) {
+            db.run(
+                `INSERT INTO events (title, description, location, createdBy) VALUES (?, ?, ?, ?)`,
+                [title, description, location, createdBy],
+                function (err) {
+                    callback(err, this.lastID);
+                }
+            );
+        } else {
+            callback(new Error('Only admin users can create events.'));
+        }
+    });
+}
+
 // Listen on Port
 server.listen(port, () => {
     console.log(`Server started on port ${port}`);
@@ -191,3 +227,16 @@ server.listen(port, () => {
         });
     });
 });
+
+// Export the createEvent function
+module.exports = {
+    db,
+    createStudentsTable: db_access.createStudentsTable,
+    createCommentsTable: db_access.createCommentsTable,
+    createStoreItemsTable: db_access.createStoreItemsTable,
+    createTransactionsTable: db_access.createTransactionsTable,
+    createCartTable: db_access.createCartTable,
+    createFeedbackTable: db_access.createFeedbackTable,
+    createEventsTable: db_access.createEventsTable,
+    createEvent,
+};

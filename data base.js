@@ -76,7 +76,29 @@ CREATE TABLE IF NOT EXISTS events (
   location TEXT,
   createdBy INTEGER NOT NULL,
   FOREIGN KEY (createdBy) REFERENCES students (id)
+  CHECK (EXISTS (SELECT 1 FROM students WHERE id = createdBy AND isAdmin = 1))
 )`;
+
+// Function to create an event (only if the user is an admin)
+function createEvent(title, description, location, createdBy, callback) {
+  // Check if the user is an admin
+  db.get('SELECT isAdmin FROM students WHERE id = ?', [createdBy], (err, row) => {
+    if (err) {
+      return callback(err);
+    }
+    if (row && row.isAdmin) {
+      db.run(
+        `INSERT INTO events (title, description, location, createdBy) VALUES (?, ?, ?, ?)`,
+        [title, description, location, createdBy],
+        function (err) {
+          callback(err, this.lastID);
+        }
+      );
+    } else {
+      callback(new Error('Only admin users can create events.'));
+    }
+  });
+}
 
 // Export database connection and table creation scripts
 module.exports = {
@@ -88,4 +110,5 @@ module.exports = {
   createCartTable,
   createFeedbackTable,
   createEventsTable,
+  createEvent,
 };
