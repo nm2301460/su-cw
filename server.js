@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcrypt');
 const db_access = require('./db.js');
 const db = db_access.db;
 const server = express();
@@ -12,31 +13,43 @@ const boolToInt = (bool) => (bool ? 1 : 0);
 server.post('/user/login', (req, res) => {
     const email = req.body.email;
     const password = req.body.password;
-    const query = `SELECT * FROM students WHERE email = '${email}' AND password = '${password}'`;
+    const query = `SELECT * FROM students WHERE email = '${email}'`;
 
-    db.get(query, (err, row) => {
+    db.get(query, async (err, row) => {
         if (err || !row) {
             return res.status(401).send('Invalid credentials');
         } else {
-            return res.status(200).send(`Login successful: ${row.name}`);
+            const match = await bcrypt.compare(password, row.password);
+            if (match) {
+                return res.status(200).send(`Login successful: ${row.name}`);
+            } else {
+                return res.status(401).send('Invalid credentials');
+            }
         }
     });
 });
 
 // User Registration
-server.post('/user/register', (req, res) => {
+server.post('/user/register', async (req, res) => {
     const { name, email, password } = req.body;
     const isAdmin = boolToInt(req.body.isAdmin || false);
-    const query = `INSERT INTO students (name, email, password, isAdmin) VALUES ('${name}', '${email}', '${password}', ${isAdmin})`;
 
-    db.run(query, (err) => {
-        if (err) {
-            console.log(err.message);
-            return res.status(401).send(err.message);
-        } else {
-            return res.status(200).send('Registration successful');
-        }
-    });
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const query = `INSERT INTO students (name, email, password, isAdmin) VALUES ('${name}', '${email}', '${hashedPassword}', ${isAdmin})`;
+
+        db.run(query, (err) => {
+            if (err) {
+                console.log(err.message);
+                return res.status(401).send(err.message);
+            } else {
+                return res.status(200).send('Registration successful');
+            }
+        });
+    } catch (error) {
+        console.log(error.message);
+        return res.status(500).send('Server error');
+    }
 });
 
 // Add Comment (Students and Admins)
