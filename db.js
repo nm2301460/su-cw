@@ -67,7 +67,6 @@ CREATE TABLE IF NOT EXISTS feedback (
   FOREIGN KEY (itemId) REFERENCES store_items (id)
 )`;
 
-// Events Table (Optional)
 const createEventsTable = `
 CREATE TABLE IF NOT EXISTS events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,8 +75,9 @@ CREATE TABLE IF NOT EXISTS events (
   location TEXT,
   createdBy INTEGER NOT NULL,
   FOREIGN KEY (createdBy) REFERENCES students (id)
-  CHECK (EXISTS (SELECT 1 FROM students WHERE id = createdBy AND isAdmin = 1))
-)`;
+);
+`;
+
 
 // Function to create an event (only if the user is an admin)
 function createEvent(title, description, location, createdBy, callback) {

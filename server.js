@@ -1,17 +1,18 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
-const sqlite3 = require('sqlite3');
+const cors = require('cors');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const db_access = require('./db.js');
 const db = db_access.db;
 const secret_key = 'DdsdsdKKFDDFDdvfddvxvc4dsdvdsvdb'
+const server = express();
+const port = 2525;
 server.use(cors({
     origin:"http://localhost:3000",
     credentials:true
 }))
-const server = express();
-const port = 888;
+
 const JWT_SECRET = 'your_jwt_secret_key'; // This should be an environment variable
 server.use(express.json());
 server.use(cookieParser()); // Middleware to parse cookies
@@ -413,6 +414,19 @@ server.listen(port, () => {
         });
     });
 });
+
+const createEvent = (name, date, description) => {
+    // Example logic for creating an event
+    const query = `INSERT INTO events (name, date, description) VALUES (?, ?, ?)`;
+    db.run(query, [name, date, description], (err) => {
+        if (err) {
+            console.log('Database error while creating event:', err.message);
+        } else {
+            console.log('Event created successfully');
+        }
+    });
+};
+
 
 // Export the createEvent function
 module.exports = {
