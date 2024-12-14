@@ -1,9 +1,15 @@
 {
   "dependencies": {
+    "axios": "^1.7.9",
     "cookie-parser": "^1.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "sqlite3": "^5.1.7"
+    "multer": "^1.4.5-lts.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.0.2",
+    "sqlite3": "^5.1.7",
+    "web-vitals": "^4.2.4"
   },
   "name": "su-cw",
   "version": "1.0.0",

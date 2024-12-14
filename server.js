@@ -7,9 +7,9 @@ const db_access = require('./db.js');
 const db = db_access.db;
 const secret_key = 'DdsdsdKKFDDFDdvfddvxvc4dsdvdsvdb'
 const server = express();
-const port = 2525;
+const port = 2322;
 server.use(cors({
-    origin:"http://localhost:3000",
+    origin:"http://127.0.0.1:3000",
     credentials:true
 }))
 
